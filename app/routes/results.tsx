@@ -7,6 +7,7 @@ import { Table, Thead, Th, Td, Tr } from "~/components/table";
 import { Button } from "~/components/button";
 import { DownloadButton } from "~/components/download-button";
 import { NoSiteSelected } from "~/components/empty-state";
+import { Scorecard } from "~/components/scorecard";
 import {
 	CaretDownIcon,
 	CaretLeftIcon,
@@ -75,6 +76,7 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 	const [promptFilter, setPromptFilter] = useState("all");
 
 	const citations: any[] = (latest as any)?.citations ?? [];
+	const summary: any = (latest as any)?.summary ?? null;
 	const testTimestamp =
 		(latest as any)?.startedAt ?? (latest as any)?.timestamp ?? null;
 
@@ -353,9 +355,17 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 				{/* Results */}
 				{citations.length > 0 ? (
 					<>
+						{/* Scorecard */}
+						{summary ? (
+							<Scorecard
+								summary={summary}
+								brandName={(site as any)?.brandName || site.domain}
+							/>
+						) : null}
+
 						{/* Filter bar */}
 						<div
-							className="sticky z-[100] flex flex-wrap items-center gap-2 px-3 py-2 text-base ring ring-neutral-950/10 bg-surface shadow-xs rounded-lg"
+							className="sticky z-[100] flex flex-wrap items-center gap-2 px-3 py-2 text-base ring ring-ring bg-surface shadow-xs rounded-lg"
 							style={{ top: 58 }}
 						>
 							<FilterSelect
@@ -455,7 +465,7 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 												<button
 													key={i}
 													onClick={() => setPage(i)}
-													className={`w-8 h-8 flex items-center justify-center rounded-md text-[13px] font-medium transition-colors ${i === page ? "bg-brand text-white" : "text-neutral-600 hover:bg-neutral-100"}`}
+													className={`w-8 h-8 flex items-center justify-center rounded-md text-[13px] font-medium transition-colors ${i === page ? "bg-brand text-ground" : "text-neutral-600 hover:bg-neutral-100"}`}
 												>
 													{i + 1}
 												</button>
@@ -507,7 +517,7 @@ function FilterSelect({
 			<select
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
-				className={`w-full h-8 pl-3 pr-7 text-[13px] rounded-lg cursor-pointer outline-none transition-all appearance-none truncate ${isActive ? "bg-neutral-900 text-white ring-1 ring-neutral-900" : "bg-surface text-neutral-700 ring-1 ring-neutral-200 hover:ring-neutral-300"}`}
+				className={`w-full h-8 pl-3 pr-7 text-[13px] rounded-lg cursor-pointer outline-none transition-all appearance-none truncate ${isActive ? "bg-neutral-900 text-ground ring-1 ring-neutral-900" : "bg-surface text-neutral-700 ring-1 ring-neutral-200 hover:ring-neutral-300"}`}
 			>
 				<option value="all">{placeholder}</option>
 				{options.map((o) => (
@@ -519,7 +529,7 @@ function FilterSelect({
 			<CaretDownIcon
 				size={12}
 				weight="bold"
-				className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${isActive ? "text-white/70" : "text-neutral-400"}`}
+				className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${isActive ? "text-ground/70" : "text-neutral-400"}`}
 			/>
 		</div>
 	);

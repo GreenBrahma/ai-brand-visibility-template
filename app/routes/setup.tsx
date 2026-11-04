@@ -332,8 +332,8 @@ export default function Setup() {
 									}
 									aria-hidden={v !== "current" && v !== "previous"}
 								>
-									<div className="rounded-xl bg-neutral-100 ring ring-neutral-950/10">
-										<div className="bg-white rounded-xl ring ring-neutral-200 p-7 flex flex-col gap-1">
+									<div className="rounded-xl bg-neutral-100 ring ring-ring">
+										<div className="bg-surface rounded-xl ring ring-neutral-200 p-7 flex flex-col gap-1">
 											{i === 0 && (
 												<StepSite
 													domain={domain}
@@ -460,7 +460,7 @@ function StepSite({ domain, setDomain, loading, onSubmit }: any) {
 				onChange={(e: any) => setDomain(e.target.value)}
 				onKeyDown={(e: any) => e.key === "Enter" && onSubmit()}
 				placeholder="yourdomain.com"
-				className="w-full h-11 px-4 text-[15px] bg-white ring ring-neutral-950/10 rounded-[10px] shadow-xs outline-none focus:ring-neutral-400 transition-shadow"
+				className="w-full h-11 px-4 text-[15px] bg-surface ring ring-ring rounded-[10px] shadow-xs outline-none focus:ring-neutral-400 transition-shadow"
 				autoFocus
 				disabled={loading}
 			/>
@@ -494,7 +494,7 @@ function StepCompetitors({
 				value={brandName}
 				onChange={(e: any) => setBrandName(e.target.value)}
 				placeholder="Your brand name"
-				className="w-full h-9 px-3 text-sm bg-white ring ring-neutral-950/10 rounded-lg shadow-xs outline-none focus:ring-neutral-400 transition-shadow mb-4"
+				className="w-full h-9 px-3 text-sm bg-surface ring ring-ring rounded-lg shadow-xs outline-none focus:ring-neutral-400 transition-shadow mb-4"
 			/>
 			<label className="text-[12px] font-medium text-neutral-500 mb-1 block">
 				Competitors <span className="text-neutral-400">(optional)</span>
@@ -533,7 +533,7 @@ function StepCompetitors({
 						}
 					}}
 					placeholder="e.g. Akamai, Fastly..."
-					className="flex-1 h-9 px-3 text-sm bg-white ring ring-neutral-950/10 rounded-lg shadow-xs outline-none focus:ring-neutral-400 transition-shadow"
+					className="flex-1 h-9 px-3 text-sm bg-surface ring ring-ring rounded-lg shadow-xs outline-none focus:ring-neutral-400 transition-shadow"
 				/>
 				<Button
 					variant="secondary"
@@ -590,7 +590,7 @@ function StepPrompts({
 					{suggestions.map((s: any, i: number) => (
 						<label
 							key={i}
-							className="flex items-center gap-3 p-3 rounded-[10px] bg-white shadow-xs ring-1 ring-neutral-950/10 hover:bg-neutral-50 cursor-pointer transition-colors"
+							className="flex items-center gap-3 p-3 rounded-[10px] bg-surface shadow-xs ring-1 ring-ring hover:bg-neutral-50 cursor-pointer transition-colors"
 						>
 							<input
 								type="checkbox"
@@ -632,7 +632,7 @@ function StepPrompts({
 						}
 					}}
 					placeholder="Add a custom prompt..."
-					className="flex-1 h-9 px-3 text-sm bg-white ring ring-neutral-950/10 rounded-lg shadow-xs outline-none focus:ring-neutral-400 transition-shadow"
+					className="flex-1 h-9 px-3 text-sm bg-surface ring ring-ring rounded-lg shadow-xs outline-none focus:ring-neutral-400 transition-shadow"
 				/>
 				<Button
 					variant="secondary"
@@ -660,7 +660,7 @@ function StepModels({ models, enabledModels, setEnabledModels }: any) {
 				{models.map((m: any) => (
 					<label
 						key={m.id}
-						className="flex items-center gap-3 p-3 rounded-[10px] bg-white shadow-xs ring-1 ring-neutral-950/10 hover:bg-neutral-50 cursor-pointer transition-colors"
+						className="flex items-center gap-3 p-3 rounded-[10px] bg-surface shadow-xs ring-1 ring-ring hover:bg-neutral-50 cursor-pointer transition-colors"
 					>
 						<input
 							type="checkbox"

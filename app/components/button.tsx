@@ -10,9 +10,9 @@ type Variant = "primary" | "secondary" | "ghost";
  */
 const variants: Record<Variant, string> = {
 	primary:
-		"bg-brand text-white shadow-xs ring-1 ring-brand hover:bg-brand-hover hover:ring-brand-hover/70 active:bg-brand/80 disabled:bg-brand/50 disabled:ring-brand/50",
+		"bg-brand text-ground shadow-xs ring-1 ring-brand hover:bg-brand-hover hover:ring-brand-hover/70 active:bg-brand/80 disabled:bg-brand/50 disabled:ring-brand/50",
 	secondary:
-		"bg-surface text-neutral-700 shadow-xs ring ring-neutral-950/10 hover:bg-tint disabled:opacity-45",
+		"bg-surface text-neutral-700 shadow-xs ring ring-ring hover:bg-tint disabled:opacity-45",
 	ghost:
 		"bg-transparent text-neutral-600 ring-1 ring-transparent hover:ring-neutral-200 hover:bg-neutral-200 transition-all disabled:opacity-45",
 };

@@ -1,22 +1,20 @@
 /**
- * Queue consumer — processes individual model×prompt test jobs via AI Gateway.
+ * Queue consumer — processes individual model×prompt×run jobs via AI Gateway.
  * Each job writes its result to a separate KV key to avoid race conditions.
+ *
+ * Scoring is delegated to src/measure.ts so it can be unit-tested outside a Worker.
  */
-import { RETENTION_DAYS, SYSTEM_PROMPT } from "../src/config";
+import {
+	RETENTION_DAYS,
+	STORED_RESPONSE_CHARS,
+	SYSTEM_PROMPT,
+} from "../src/config";
+import { analyzeResponse, type ScoredCitation } from "../src/measure";
 import type { QueueJob } from "./api";
 
 type Env = {
 	AI: Ai;
 	AEO_KV: KVNamespace;
-};
-
-type Citation = {
-	model: string;
-	provider: string;
-	prompt: string;
-	mentioned: boolean;
-	excerpt: string | null;
-	response: string;
 };
 
 export async function queueConsumer(
@@ -39,27 +37,58 @@ export async function queueConsumer(
 	}
 }
 
-async function executeJob(env: Env, job: QueueJob): Promise<Citation> {
+function emptyCitation(job: QueueJob, response: string, error: string): ScoredCitation {
+	return {
+		model: job.modelName,
+		provider: job.provider,
+		prompt: job.prompt,
+		promptTag: job.promptTag,
+		run: job.run,
+		mentioned: false,
+		rank: null,
+		brandCount: 0,
+		shareOfVoice: 0,
+		competitors: (job.competitors ?? []).map((name) => ({
+			name,
+			matched: false,
+			count: 0,
+		})),
+		excerpt: null,
+		response,
+		error,
+	};
+}
+
+async function executeJob(env: Env, job: QueueJob): Promise<ScoredCitation> {
 	try {
 		const text = await callModel(env, job);
-		const mentioned = text.toLowerCase().includes(job.domain);
-		let excerpt: string | null = null;
 
-		if (mentioned) {
-			const i = text.toLowerCase().indexOf(job.domain);
-			excerpt = text.slice(
-				Math.max(0, i - 100),
-				Math.min(text.length, i + job.domain.length + 100),
-			);
-		}
+		const a = analyzeResponse({
+			text,
+			brandName: job.brandName,
+			domain: job.domain,
+			brandAliases: job.brandAliases ?? [],
+			competitors: job.competitors ?? [],
+		});
 
 		return {
 			model: job.modelName,
 			provider: job.provider,
 			prompt: job.prompt,
-			mentioned,
-			excerpt,
-			response: text.slice(0, 500),
+			promptTag: job.promptTag,
+			run: job.run,
+			mentioned: a.brand.matched,
+			rank: a.rank,
+			brandCount: a.brand.count,
+			shareOfVoice: a.shareOfVoice,
+			competitors: a.competitors.map((cmp) => ({
+				name: cmp.name,
+				matched: cmp.matched,
+				count: cmp.count,
+			})),
+			excerpt: a.excerpt,
+			response: text.slice(0, STORED_RESPONSE_CHARS),
+			error: null,
 		};
 	} catch (err) {
 		const errMsg = err instanceof Error ? err.message : String(err);
@@ -69,33 +98,22 @@ async function executeJob(env: Env, job: QueueJob): Promise<Citation> {
 			? "Unified Billing credits required. Load credits at dash.cloudflare.com → AI Gateway → Billing."
 			: `Error: ${errMsg}`;
 
-		return {
-			model: job.modelName,
-			provider: job.provider,
-			prompt: job.prompt,
-			mentioned: false,
-			excerpt: null,
-			response,
-		};
+		return emptyCitation(job, response, errMsg);
 	}
 }
 
 /**
  * Universal model caller — all models go through env.AI.run() with AI Gateway.
  * Handles OpenAI/Anthropic (messages format) and Gemini (contents format).
- * Falls back to mock responses when AI binding is unavailable.
  */
 async function callModel(env: Env, job: QueueJob): Promise<string> {
-	// If AI binding is not available, return mock response
 	if (!env.AI) {
-		console.log("AI binding not available, using mock response");
-		return `Mock AI response from ${job.modelName}`;
+		throw new Error("AI binding not available");
 	}
 
 	let input: any;
 
 	if (job.isGemini) {
-		// Gemini format
 		input = {
 			contents: [
 				{
@@ -106,14 +124,12 @@ async function callModel(env: Env, job: QueueJob): Promise<string> {
 			generationConfig: { maxOutputTokens: job.maxTokens },
 		};
 	} else if (job.isAnthropic) {
-		// Anthropic format
 		input = {
 			system: SYSTEM_PROMPT,
 			messages: [{ role: "user", content: job.prompt }],
 			max_tokens: job.maxTokens,
 		};
 	} else {
-		// OpenAI/Workers AI format - supports system role
 		input = {
 			messages: [
 				{ role: "system", content: SYSTEM_PROMPT },
@@ -135,10 +151,8 @@ function extractText(r: any): string {
 	if (typeof r === "string") return r;
 	if (!r || typeof r !== "object") return String(r);
 
-	// Workers AI: { response: "..." }
 	if ("response" in r && typeof r.response === "string") return r.response;
 
-	// OpenAI/Anthropic: { choices: [{ message: { content: "..." } }] }
 	if (r.choices && Array.isArray(r.choices)) {
 		for (const choice of r.choices) {
 			const msg = choice.message ?? choice.delta;
@@ -148,19 +162,16 @@ function extractText(r: any): string {
 		}
 	}
 
-	// Gemini: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
 	if (r.candidates && Array.isArray(r.candidates)) {
 		const text = r.candidates[0]?.content?.parts?.[0]?.text;
 		if (text) return text;
 	}
 
-	// Anthropic messages: { content: [{ type: "text", text: "..." }] }
 	if (Array.isArray(r.content)) {
 		const tb = r.content.find((b: any) => b.type === "text" && b.text);
 		if (tb) return tb.text;
 	}
 
-	// Last resort: regex content extraction
 	const s = JSON.stringify(r);
 	const m = s.match(/"(?:content|text)"\s*:\s*"((?:[^"\\]|\\.)*)"/);
 	if (m) return m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');

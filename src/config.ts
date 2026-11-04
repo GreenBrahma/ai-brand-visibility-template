@@ -38,33 +38,33 @@ export const MODELS: ModelConfig[] = [
 		id: "openai/gpt-5.4-nano",
 		name: "GPT-5.4 Nano",
 		provider: "openai",
-		maxTokens: 512,
+		maxTokens: 800,
 	},
 	{
 		id: "anthropic/claude-sonnet-4",
 		name: "Claude Sonnet 4",
 		provider: "anthropic",
-		maxTokens: 512,
+		maxTokens: 800,
 		isAnthropic: true,
 	},
 	{
 		id: "google/gemini-3-flash",
 		name: "Gemini 3 Flash",
 		provider: "google",
-		maxTokens: 512,
+		maxTokens: 800,
 		isGemini: true,
 	},
 	{
 		id: "@cf/meta/llama-4-scout-17b-16e-instruct",
 		name: "Llama 4 Scout 17B",
 		provider: "workers-ai",
-		maxTokens: 512,
+		maxTokens: 800,
 	},
 	{
 		id: "@cf/mistralai/mistral-small-3.1-24b-instruct",
 		name: "Mistral Small 3.1",
 		provider: "workers-ai",
-		maxTokens: 512,
+		maxTokens: 800,
 	},
 ];
 
@@ -73,5 +73,28 @@ export const SETUP_MODEL = "openai/gpt-5.4-nano";
 
 export const RETENTION_DAYS = 30;
 
+/**
+ * Repeat runs per model×prompt pair.
+ *
+ * One run tells you nothing about reliability. Models are stochastic: the same
+ * question can mention a brand on one pass and omit it on the next. Three runs
+ * lets us report a range alongside the mean, which is the difference between a
+ * measurement and an anecdote.
+ */
+export const RUNS_PER_PROMPT = 3;
+
+/** Characters of each response retained for auditing. */
+export const STORED_RESPONSE_CHARS = 2000;
+
+/**
+ * Neutral system prompt.
+ *
+ * The upstream template shipped: "…mention specific companies, products, and
+ * websites by name when relevant. Include URLs when you know them." That
+ * instruction inflates every mention rate it measures — it asks the model to do
+ * the exact thing being scored, so the number says more about the harness than
+ * about the brand's standing. We ask nothing, and measure what the model
+ * volunteers on its own.
+ */
 export const SYSTEM_PROMPT =
-	"You are a helpful assistant. When answering questions, mention specific companies, products, and websites by name when relevant. Include URLs when you know them.";
+	"You are a helpful assistant. Answer the user's question directly and concisely.";

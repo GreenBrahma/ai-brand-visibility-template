@@ -6,10 +6,12 @@ import { Hono } from "hono";
 import {
 	MODELS,
 	RETENTION_DAYS,
+	RUNS_PER_PROMPT,
 	SYSTEM_PROMPT,
 	SETUP_MODEL,
 } from "../src/config";
 import type { ModelConfig } from "../src/config";
+import { summarize, type ScoredCitation, type Summary } from "../src/measure";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,8 @@ type Site = {
 	domain: string;
 	brandName?: string;
 	competitors?: string[];
+	/** Extra spellings to count as the brand (acronyms, former names, product names) */
+	aliases?: string[];
 	description?: string;
 	addedAt: string;
 };
@@ -38,35 +42,43 @@ type IndexEntry = {
 type TestRun = {
 	id: string;
 	domain: string;
+	brandName: string;
+	competitors: string[];
+	runsPerPrompt: number;
 	startedAt: string;
 	status: "running" | "complete";
 	total: number;
 	completed: number;
 	citations: Citation[];
-	summary?: { total: number; mentioned: number; rate: number };
+	summary?: Summary;
 };
 
-type Citation = {
-	model: string;
-	provider: string;
-	prompt: string;
-	mentioned: boolean;
-	excerpt: string | null;
-	response: string;
-};
+/** A scored model response. Shape and scoring live in src/measure.ts. */
+type Citation = ScoredCitation;
 
 type Prompt = {
 	text: string;
 	active: boolean;
+	/** Branded | Category | Competitive */
+	tag?: string;
 };
 
 export type QueueJob = {
 	testId: string;
 	domain: string;
+	/** Canonical brand name — scoring matches on this plus aliases, not the raw domain */
+	brandName: string;
+	/** Extra spellings the operator supplied */
+	brandAliases?: string[];
+	/** Tracked competitors, for rank and share of voice */
+	competitors?: string[];
 	modelId: string;
 	modelName: string;
 	provider: string;
 	prompt: string;
+	promptTag?: string;
+	/** 1-based repeat index for this model×prompt pair */
+	run: number;
 	maxTokens: number;
 	isGemini?: boolean;
 	isAnthropic?: boolean;
@@ -176,7 +188,7 @@ apiRoutes.put("/sites/:domain/models", async (c) => {
 apiRoutes.post("/sites/:domain/test", async (c) => {
 	const d = c.req.param("domain");
 	const allPrompts = await getPrompts(c.env, d);
-	const prompts = allPrompts.filter((p) => p.active).map((p) => p.text);
+	const prompts = allPrompts.filter((p) => p.active);
 	if (!prompts.length)
 		return c.json({ error: "No active prompts configured" }, 400);
 
@@ -184,28 +196,50 @@ apiRoutes.post("/sites/:domain/test", async (c) => {
 	const models = MODELS.filter((m) => enabled.includes(m.id));
 	if (!models.length) return c.json({ error: "No models enabled" }, 400);
 
+	// Brand context drives scoring — without it we are back to substring matching.
+	const site = (await getSites(c.env)).find((s) => s.domain === d);
+	const brandName = site?.brandName?.trim() || d.split(".")[0];
+	const competitors = (site?.competitors ?? [])
+		.map((x) => x.trim())
+		.filter(Boolean);
+	const brandAliases = (site?.aliases ?? []).map((x) => x.trim()).filter(Boolean);
+
+	// Repeat count is overridable per request so a quick look can stay cheap.
+	const body = await c.req.json<{ runs?: number }>().catch(() => ({}) as { runs?: number });
+	const runs = Math.min(Math.max(body.runs ?? RUNS_PER_PROMPT, 1), 5);
+
 	const testId = crypto.randomUUID();
 	const jobs: QueueJob[] = [];
 
 	for (const model of models) {
-		for (const prompt of prompts) {
-			jobs.push({
-				testId,
-				domain: d,
-				modelId: model.id,
-				modelName: model.name,
-				provider: model.provider,
-				prompt,
-				maxTokens: model.maxTokens ?? 512,
-				isGemini: model.isGemini,
-				isAnthropic: model.isAnthropic,
-			});
+		for (const p of prompts) {
+			for (let run = 1; run <= runs; run++) {
+				jobs.push({
+					testId,
+					domain: d,
+					brandName,
+					brandAliases,
+					competitors,
+					modelId: model.id,
+					modelName: model.name,
+					provider: model.provider,
+					prompt: p.text,
+					promptTag: p.tag,
+					run,
+					maxTokens: model.maxTokens ?? 800,
+					isGemini: model.isGemini,
+					isAnthropic: model.isAnthropic,
+				});
+			}
 		}
 	}
 
 	const run: TestRun = {
 		id: testId,
 		domain: d,
+		brandName,
+		competitors,
+		runsPerPrompt: runs,
 		startedAt: new Date().toISOString(),
 		status: "running",
 		total: jobs.length,
@@ -253,12 +287,7 @@ apiRoutes.get("/tests/:id/status", async (c) => {
 		run.status = "complete";
 		run.completed = completed;
 		run.citations = citations;
-		const mentioned = citations.filter((ci) => ci.mentioned).length;
-		run.summary = {
-			total: citations.length,
-			mentioned,
-			rate: citations.length > 0 ? mentioned / citations.length : 0,
-		};
+		run.summary = summarize(citations);
 		await c.env.AEO_KV.put(`test:${testId}`, JSON.stringify(run), {
 			expirationTtl: RETENTION_DAYS * 86400,
 		});
@@ -315,16 +344,45 @@ apiRoutes.get("/results/:id/csv", async (c) => {
 		}
 	}
 
-	const hdr = "Model,Provider,Prompt,Mentioned,Excerpt,Response\n";
+	const compNames = [
+		...new Set(run.citations.flatMap((ci) => ci.competitors.map((x) => x.name))),
+	];
+
+	const hdr =
+		[
+			"Model",
+			"Provider",
+			"Prompt",
+			"Tag",
+			"Run",
+			"Mentioned",
+			"Rank",
+			"BrandMentions",
+			"ShareOfVoice",
+			...compNames.map((n) => `Comp:${n}`),
+			"Excerpt",
+			"Response",
+			"Error",
+		].join(",") + "\n";
+
 	const rows = run.citations
 		.map((ci) =>
 			[
-				ci.model,
+				csvE(ci.model),
 				ci.provider,
 				csvE(ci.prompt),
+				ci.promptTag ?? "",
+				ci.run,
 				ci.mentioned ? "Yes" : "No",
+				ci.rank ?? "",
+				ci.brandCount,
+				ci.shareOfVoice.toFixed(3),
+				...compNames.map(
+					(n) => ci.competitors.find((x) => x.name === n)?.count ?? 0,
+				),
 				csvE(ci.excerpt ?? ""),
 				csvE(ci.response),
+				csvE(ci.error ?? ""),
 			].join(","),
 		)
 		.join("\n");

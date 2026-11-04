@@ -15,7 +15,7 @@ export function NoSiteSelected() {
 				</p>
 				<a
 					href="/setup"
-					className="inline-flex items-center gap-1.5 h-9 px-4 text-[13px] font-medium rounded-lg bg-brand text-white hover:bg-brand-hover shadow-xs ring-1 ring-brand transition-all"
+					className="inline-flex items-center gap-1.5 h-9 px-4 text-[13px] font-medium rounded-lg bg-brand text-ground hover:bg-brand-hover shadow-xs ring-1 ring-brand transition-all"
 				>
 					Add your first site
 				</a>

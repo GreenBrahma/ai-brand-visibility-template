@@ -1,44 +1,126 @@
 @import "tailwindcss" source(".");
 
+/**
+ * GreenBrahma theme.
+ *
+ * The upstream template shipped Cloudflare's light "Kumo" palette. Rather than
+ * rewrite every component, we redefine the tokens they already consume — including
+ * an inverted neutral ramp, so `text-neutral-900` resolves to near-white and
+ * `bg-neutral-50` to near-black. One typeface throughout: monospace, matching
+ * greenbrahma.com.
+ */
 @theme {
-	/* Kumo tokens from stratus */
-	--color-canvas: #fafafa;
-	--color-surface: #ffffff;
-	--color-surface-secondary: #fcfcfc;
-	--color-elevated: #fafafa;
-	--color-tint: #f5f5f5;
-	--color-brand: #046cfe;
-	--color-brand-hover: #1347e5;
-	--color-ring: rgba(10, 10, 10, 0.1);
-	--color-success: #16a34a;
-	--color-success-tint: #d1fae5;
-	--color-danger: #b91c1c;
-	--color-danger-tint: #fee2e2;
-	--color-info-tint: #dbeafe;
-	--color-warning-tint: #fefce8;
-	--color-violet-bg: #ede9fe;
-	--color-violet: #5b21b6;
+	/* ── GreenBrahma palette ─────────────────────────────────────────────── */
+	--color-ground: #0d0f0c;
+	--color-ink: #f2f0e9;
+	--color-green-signal: #30730f;
+	--color-green-lit: #5cb824;
+	--color-rule: #2a2f22;
 
+	/* ── Surfaces ────────────────────────────────────────────────────────── */
+	--color-canvas: #0d0f0c;
+	--color-surface: #12140f;
+	--color-surface-secondary: #141712;
+	--color-elevated: #16190f;
+	--color-tint: #1a1d16;
+
+	--color-brand: #5cb824;
+	--color-brand-hover: #7ad63f;
+	--color-ring: rgba(242, 240, 233, 0.12);
+
+	--color-success: #5cb824;
+	--color-success-tint: #182a10;
+	--color-danger: #e0705a;
+	--color-danger-tint: #2d1510;
+	--color-info-tint: #13201c;
+	--color-warning-tint: #241f0f;
+	--color-violet-bg: #1b1a2b;
+	--color-violet: #a99af0;
+
+	/* ── Inverted neutral ramp: low index = dark, high index = light ─────── */
+	--color-neutral-50: #141712;
+	--color-neutral-100: #181b15;
+	--color-neutral-200: #2a2f22;
+	--color-neutral-300: #3a4034;
+	--color-neutral-400: #6f6d66;
+	--color-neutral-500: #8e8c84;
+	--color-neutral-600: #a7a99f;
+	--color-neutral-700: #cfcdc4;
+	--color-neutral-800: #e5e3db;
+	--color-neutral-900: #f2f0e9;
+	--color-neutral-950: #ffffff;
+
+	/* Provider badge scales, re-pointed for a dark ground */
+	--color-green-50: #182a10;
+	--color-green-200: #2f5a1c;
+	--color-green-800: #9fe07a;
+	--color-orange-50: #2d1c0f;
+	--color-orange-200: #5c3a1c;
+	--color-orange-800: #f0b183;
+	--color-blue-50: #101f2d;
+	--color-blue-200: #1d3a56;
+	--color-blue-800: #8fc4f0;
+	--color-purple-50: #1b1a2b;
+	--color-purple-200: #332f52;
+	--color-purple-800: #b7aaf5;
+	--color-amber-50: #241f0f;
+	--color-amber-200: #4a3f1c;
+	--color-amber-600: #d9a93c;
+	--color-amber-800: #e8cc7a;
+	--color-red-50: #2d1510;
+	--color-red-200: #5a2a20;
+	--color-red-600: #e0705a;
+	--color-red-800: #f0a393;
+
+	/* ── One typeface ────────────────────────────────────────────────────── */
 	--font-sans:
-		ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
+		"Liberation Mono", monospace;
+	--font-mono:
+		ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
+		"Liberation Mono", monospace;
 }
 
 html,
 body {
 	@apply bg-canvas text-neutral-900 antialiased;
-	font-size: 14px;
-	line-height: 1.43;
+	font-size: 15px;
+	line-height: 1.55;
 }
 
-/* Dot grid background */
+/* Dot grid, dimmed for the dark ground */
 body::before {
 	content: "";
 	position: fixed;
 	inset: 0;
 	z-index: -1;
-	background-image: radial-gradient(circle, #a3a3a3 0.6px, transparent 0.6px);
+	background-image: radial-gradient(circle, #2a2f22 0.7px, transparent 0.7px);
 	background-size: 24px 24px;
-	opacity: 0.4;
+	opacity: 0.55;
 	pointer-events: none;
+}
+
+::selection {
+	background: var(--color-green-signal);
+	color: var(--color-ink);
+}
+
+/* Form controls do not inherit the inverted ramp reliably across browsers */
+input,
+textarea,
+select {
+	background-color: var(--color-surface);
+	color: var(--color-ink);
+	border-color: var(--color-rule);
+}
+
+input::placeholder,
+textarea::placeholder {
+	color: #6f6d66;
+}
+
+/* Keep focus visible against a dark ground */
+*:focus-visible {
+	outline: 2px solid var(--color-green-lit);
+	outline-offset: 2px;
 }

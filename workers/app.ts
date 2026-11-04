@@ -22,7 +22,12 @@ app.get("*", (c) => {
 		import.meta.env.MODE,
 	);
 	return requestHandler(c.req.raw, {
-		cloudflare: { env: c.env, ctx: c.executionCtx },
+		// Hono types executionCtx against an older workers-types ExecutionContext
+		// than the one wrangler generates. Runtime shape is identical.
+		cloudflare: {
+			env: c.env,
+			ctx: c.executionCtx as unknown as ExecutionContext,
+		},
 	});
 });
 

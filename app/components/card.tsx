@@ -10,7 +10,7 @@ export function Card({
 }) {
 	return (
 		<div
-			className={`w-full text-base ring ring-neutral-950/10 rounded-lg shadow-xs bg-surface overflow-hidden ${className}`}
+			className={`w-full text-base ring ring-ring rounded-lg shadow-xs bg-surface overflow-hidden ${className}`}
 		>
 			{children}
 		</div>

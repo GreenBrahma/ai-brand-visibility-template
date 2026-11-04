@@ -2,7 +2,28 @@
 
 ## What is this?
 
-A Worker template that tests whether AI models (GPT-5.4, Claude Sonnet 4, Gemini 3 Flash, Llama 4, Mistral) mention your brand when answering relevant queries. All models run through Cloudflare AI Gateway — no external API keys needed.
+A Worker that tests whether AI models (GPT-5.4, Claude Sonnet 4, Gemini 3 Flash, Llama 4, Mistral) mention your brand when answering relevant queries. All models run through Cloudflare AI Gateway — no external API keys needed.
+
+Forked from Cloudflare's template and re-worked for GreenBrahma. The changes are in the measurement, not the plumbing.
+
+## How scoring works
+
+All scoring lives in `src/measure.ts` as pure functions, so it can be tested without a Worker. The upstream template scored a hit with `text.toLowerCase().includes(domain)`. This version measures:
+
+| Signal              | Method                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| **Mentioned**       | Brand name + aliases + domain forms, matched on alphanumeric boundaries. "Brahma" does not match "Brahmaputra". |
+| **Count**           | Distinct mentions, with overlapping alias hits merged so `greenbrahma` inside `greenbrahma.com` counts once. |
+| **Rank**            | 1-based position among every tracked entity that appeared, ordered by first mention.       |
+| **Share of voice**  | Brand mentions over all tracked-entity mentions.                                           |
+| **Reproducibility** | Each model×prompt pair runs `RUNS_PER_PROMPT` times; the summary reports mean plus range.  |
+
+Two deliberate changes to measurement validity:
+
+- **The system prompt is neutral.** Upstream instructed the model to "mention specific companies, products, and websites by name" — which inflates the very number being measured. We ask nothing and record what the model volunteers.
+- **`maxTokens` is 800, not 512.** A brand named late in a truncated answer was being scored as absent.
+
+Aliases shorter than three characters are dropped unless supplied explicitly in `site.aliases`, because short tokens generate false positives in prose.
 
 ## Prerequisites
 
@@ -46,9 +67,12 @@ npm run deploy
 
 | File               | Purpose                             |
 | ------------------ | ----------------------------------- |
-| `src/config.ts`    | Model definitions, settings         |
+| `src/config.ts`    | Model definitions, run count, system prompt |
+| `src/measure.ts`   | Scoring engine — matching, rank, share of voice, aggregation (pure, testable) |
 | `workers/app.ts`   | Hono entry + SSR + Queue consumer   |
 | `workers/api.ts`   | All API endpoints                   |
 | `workers/queue.ts` | Queue consumer (parallel inference) |
 | `app/routes/`      | React Router pages                  |
-| `app/components/`  | Kumo-matched UI components          |
+| `app/components/`  | UI components                       |
+| `app/components/scorecard.tsx` | Measured summary — rate with range, rank, share of voice |
+| `app/app.css`      | GreenBrahma theme — inverted neutral ramp, monospace throughout |
