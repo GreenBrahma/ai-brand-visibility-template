@@ -9,7 +9,7 @@ import { NoSiteSelected } from "~/components/empty-state";
 import { InfoIcon } from "@phosphor-icons/react";
 
 export function meta() {
-	return [{ title: "Models | AI Brand Visibility Template" }];
+	return [{ title: "Models | GreenBrahma AI Visibility" }];
 }
 
 export async function loader({ context, request }: Route.LoaderArgs) {

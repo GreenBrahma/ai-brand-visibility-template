@@ -34,7 +34,7 @@ type ApiError = {
 };
 
 export function meta() {
-	return [{ title: "Results | AI Brand Visibility Template" }];
+	return [{ title: "Results | GreenBrahma AI Visibility" }];
 }
 
 export async function loader({ context, request }: Route.LoaderArgs) {

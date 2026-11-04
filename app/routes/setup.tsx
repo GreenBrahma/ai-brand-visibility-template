@@ -17,7 +17,7 @@ type TestStart = {
 };
 
 export function meta() {
-	return [{ title: "Add Site | AI Brand Visibility Template" }];
+	return [{ title: "Add Site | GreenBrahma AI Visibility" }];
 }
 
 export default function Setup() {

@@ -8,7 +8,7 @@ import { NoSiteSelected } from "~/components/empty-state";
 import { SparkleIcon, XIcon } from "@phosphor-icons/react";
 
 export function meta() {
-	return [{ title: "Prompts | AI Brand Visibility Template" }];
+	return [{ title: "Prompts | GreenBrahma AI Visibility" }];
 }
 
 type Prompt = {
