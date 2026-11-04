@@ -283,6 +283,10 @@ export type ScoredCitation = {
 	promptNamedBrand?: boolean;
 	unprompted?: boolean;
 	disclaimed?: boolean;
+	/** "memory" or "search" — which surface this answer came from */
+	mode?: "memory" | "search";
+	/** Sources the model retrieved before answering (search mode only) */
+	sources?: { url: string; title?: string; domain: string }[];
 	error?: string | null;
 };
 
@@ -431,4 +435,122 @@ export function summarize(citations: ScoredCitation[]): Summary {
 		byCompetitor: byCompetitor.sort((a, b) => b.shareOfVoice - a.shareOfVoice),
 		errors: citations.filter((c) => c.error).length,
 	};
+}
+
+// ── Citations ──────────────────────────────────────────────────────────────
+
+export type Citation = { url: string; title?: string; domain: string };
+
+/** Hosts that are infrastructure, not sources worth chasing. */
+const NOISE_HOST =
+	/(^|\.)(google|bing|duckduckgo|youtube|facebook|x|twitter|instagram|linkedin|pinterest|reddit)\.(com|co\.uk|org)$/i;
+
+export function hostOf(url: string): string {
+	try {
+		return new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
+	} catch {
+		return "";
+	}
+}
+
+/**
+ * Pull cited sources out of a model response.
+ *
+ * Providers disagree on shape and change it without warning, so this reads
+ * every structure we know of and falls back to scraping URLs out of the text.
+ * A partial answer beats an exception.
+ */
+export function extractCitations(raw: any, text = ""): Citation[] {
+	const found = new Map<string, Citation>();
+	const push = (url?: string, title?: string) => {
+		if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url)) return;
+		const clean = url.split("#")[0].replace(/[),.;]+$/, "");
+		const domain = hostOf(clean);
+		if (!domain || NOISE_HOST.test(domain)) return;
+		if (!found.has(clean)) found.set(clean, { url: clean, title, domain });
+	};
+
+	const walk = (node: any, depth = 0) => {
+		if (!node || depth > 6) return;
+		if (Array.isArray(node)) {
+			for (const n of node) walk(n, depth + 1);
+			return;
+		}
+		if (typeof node !== "object") return;
+
+		// Anthropic: text blocks carry `citations`, web_search_tool_result blocks
+		// carry `content: [{ url, title }]`. OpenAI Responses uses `annotations`
+		// with `url_citation`.
+		if (typeof node.url === "string") push(node.url, node.title ?? node.name);
+		for (const k of ["citations", "annotations", "content", "output", "results", "sources"]) {
+			if (node[k]) walk(node[k], depth + 1);
+		}
+		if (node.message) walk(node.message, depth + 1);
+		if (node.choices) walk(node.choices, depth + 1);
+	};
+
+	try {
+		walk(raw);
+	} catch {
+		/* fall through to text scraping */
+	}
+
+	// Safety net: any bare URL the model wrote into its answer.
+	for (const m of (text ?? "").matchAll(/https?:\/\/[^\s<>()\[\]"']+/gi)) {
+		push(m[0]);
+	}
+
+	return [...found.values()];
+}
+
+export type SourceStat = {
+	domain: string;
+	citations: number;
+	/** Share of answers that cited this domain at least once */
+	rate: number;
+	isBrand: boolean;
+	exampleUrl: string;
+};
+
+/**
+ * Which domains the models actually read before answering.
+ *
+ * This is the work order: if the answers to your category questions are built
+ * from four directory pages and a news article, those are the properties to go
+ * win, in that order.
+ */
+export function rankSources(
+	citations: ScoredCitation[],
+	brandDomain?: string,
+): SourceStat[] {
+	const brand = (brandDomain ?? "").replace(/^www\./i, "").toLowerCase();
+	const byDomain = new Map<
+		string,
+		{ n: number; answers: Set<number>; example: string }
+	>();
+
+	citations.forEach((c, i) => {
+		for (const s of c.sources ?? []) {
+			const cur = byDomain.get(s.domain) ?? {
+				n: 0,
+				answers: new Set<number>(),
+				example: s.url,
+			};
+			cur.n += 1;
+			cur.answers.add(i);
+			byDomain.set(s.domain, cur);
+		}
+	});
+
+	const withSources = citations.filter((c) => (c.sources ?? []).length).length;
+
+	return [...byDomain.entries()]
+		.map(([domain, v]) => ({
+			domain,
+			citations: v.n,
+			rate: withSources ? v.answers.size / withSources : 0,
+			isBrand: !!brand && (domain === brand || domain.endsWith("." + brand)),
+			exampleUrl: v.example,
+		}))
+		.sort((a, b) => b.citations - a.citations);
 }

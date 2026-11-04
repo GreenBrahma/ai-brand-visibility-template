@@ -4,6 +4,9 @@ import {
 	findMentions,
 	summarize,
 	bareDomain,
+	extractCitations,
+	rankSources,
+	hostOf,
 	type ScoredCitation,
 } from "../src/measure.ts";
 
@@ -188,6 +191,53 @@ const s2 = summarize([
 check("open questions counted", s2.openQuestions === 2, `got ${s2.openQuestions}`);
 check("unprompted rate = 1/2", Math.abs(s2.unpromptedRate - 0.5) < 1e-9, `got ${s2.unpromptedRate}`);
 check("disclaimed rate = 1/2 of hits", Math.abs(s2.disclaimedRate - 0.5) < 1e-9, `got ${s2.disclaimedRate}`);
+
+
+
+// ── Citation extraction + source ranking ─────────────────────────────────
+console.log("\n-- citations --");
+
+const anthropicShape = {
+	content: [
+		{
+			type: "web_search_tool_result",
+			content: [
+				{ url: "https://www.justia.com/lawyers/kansas-city", title: "Justia" },
+				{ url: "https://www.avvo.com/attorneys/kc", title: "Avvo" },
+			],
+		},
+		{
+			type: "text",
+			text: "Several firms come up.",
+			citations: [{ url: "https://kcstar.com/legal/best-firms", title: "KC Star" }],
+		},
+	],
+};
+const cites = extractCitations(anthropicShape, "Also see https://yonke.law/truck-accidents");
+check("anthropic tool-result urls found", cites.some(c => c.domain === "justia.com"));
+check("anthropic text citations found", cites.some(c => c.domain === "kcstar.com"));
+check("bare url in text scraped", cites.some(c => c.domain === "yonke.law"));
+check("google/social hosts filtered", !cites.some(c => /google|facebook/.test(c.domain)));
+check("no duplicates", new Set(cites.map(c => c.url)).size === cites.length);
+check("malformed payload does not throw", extractCitations(null, "").length === 0);
+
+const withSources = (srcs: string[]): any => ({
+	...mk("GPT-5.5 · web", 1, true, 1, 1),
+	sources: srcs.map((u) => ({ url: u, domain: hostOf(u) })),
+});
+const ranked = rankSources(
+	[
+		withSources(["https://justia.com/a", "https://avvo.com/b"]),
+		withSources(["https://justia.com/c"]),
+		withSources(["https://yonke.law/x"]),
+	],
+	"yonke.law",
+);
+check("most-cited domain ranks first", ranked[0].domain === "justia.com", ranked[0].domain);
+check("citation counts correct", ranked[0].citations === 2);
+check("rate is share of answers", Math.abs(ranked[0].rate - 2 / 3) < 1e-9);
+check("brand domain flagged", ranked.find(r => r.domain === "yonke.law")!.isBrand === true);
+check("competitor domain not flagged", ranked.find(r => r.domain === "avvo.com")!.isBrand === false);
 
 console.log(`\nFINAL: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

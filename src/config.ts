@@ -8,6 +8,8 @@
  */
 
 export type ModelConfig = {
+	/** Stable unique key — the same model id appears twice, once per mode */
+	key: string;
 	/** Model ID — @cf/ for Workers AI, author/model for third-party via gateway */
 	id: string;
 	/** Display name */
@@ -26,6 +28,17 @@ export type ModelConfig = {
 	isGemini?: boolean;
 	/** Whether this is an Anthropic model (no system role in messages) */
 	isAnthropic?: boolean;
+	/**
+	 * What surface this entry measures.
+	 *
+	 * "memory"  — the model answers from training data alone. For a local
+	 *             business this is effectively fixed and unwinnable; it is kept
+	 *             as a labelled baseline, not as a scoreboard.
+	 * "search"  — the model retrieves live web results before answering, which
+	 *             is what actually happens when a person asks ChatGPT or Claude
+	 *             a question today. This is the surface you can move.
+	 */
+	mode: "memory" | "search";
 };
 
 /**
@@ -41,39 +54,64 @@ export type ModelConfig = {
  * check here first — the error text names its replacement.
  */
 export const MODELS: ModelConfig[] = [
+	// ── Search surface: what a real prospect actually sees ─────────────────
 	{
+		key: "openai-search",
 		id: "openai/gpt-5.5",
-		name: "GPT-5.5",
+		name: "GPT-5.5 · web",
 		provider: "openai",
-		maxTokens: 800,
+		maxTokens: 900,
+		mode: "search",
 	},
 	{
+		key: "anthropic-search",
 		id: "anthropic/claude-sonnet-4.6",
-		name: "Claude Sonnet 4.6",
+		name: "Claude Sonnet 4.6 · web",
+		provider: "anthropic",
+		maxTokens: 900,
+		isAnthropic: true,
+		mode: "search",
+	},
+
+	// ── Memory surface: labelled baseline, not a target ────────────────────
+	{
+		key: "openai-memory",
+		id: "openai/gpt-5.5",
+		name: "GPT-5.5 · memory",
+		provider: "openai",
+		maxTokens: 800,
+		mode: "memory",
+	},
+	{
+		key: "anthropic-memory",
+		id: "anthropic/claude-sonnet-4.6",
+		name: "Claude Sonnet 4.6 · memory",
 		provider: "anthropic",
 		maxTokens: 800,
 		isAnthropic: true,
+		mode: "memory",
 	},
 	{
+		key: "google-memory",
 		id: "google/gemini-3.8-flash",
-		name: "Gemini 3.8 Flash",
+		name: "Gemini 3.8 Flash · memory",
 		provider: "google",
 		maxTokens: 800,
 		isGemini: true,
+		mode: "memory",
 	},
 	{
+		key: "glm-memory",
 		id: "@cf/zai-org/glm-5.2",
-		name: "GLM 5.2",
+		name: "GLM 5.2 · memory",
 		provider: "workers-ai",
 		maxTokens: 800,
-	},
-	{
-		id: "@cf/qwen/qwen3.8-27b",
-		name: "Qwen3.8 27B",
-		provider: "workers-ai",
-		maxTokens: 800,
+		mode: "memory",
 	},
 ];
+
+/** Max web searches a single answer may perform. Each one costs. */
+export const MAX_WEB_SEARCHES = 4;
 
 /** Model used for AI prompt generation in /api/setup */
 export const SETUP_MODEL = "openai/gpt-5.5";

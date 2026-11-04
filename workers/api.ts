@@ -11,7 +11,12 @@ import {
 	SETUP_MODEL,
 } from "../src/config";
 import type { ModelConfig } from "../src/config";
-import { summarize, type ScoredCitation, type Summary } from "../src/measure";
+import {
+	rankSources,
+	summarize,
+	type ScoredCitation,
+	type Summary,
+} from "../src/measure";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +56,8 @@ type TestRun = {
 	completed: number;
 	citations: Citation[];
 	summary?: Summary;
+	/** Domains the models read before answering — the target list */
+	sources?: ReturnType<typeof rankSources>;
 };
 
 /** A scored model response. Shape and scoring live in src/measure.ts. */
@@ -75,6 +82,8 @@ export type QueueJob = {
 	modelId: string;
 	modelName: string;
 	provider: string;
+	/** "memory" or "search" — decides whether web search tools are attached */
+	mode: "memory" | "search";
 	prompt: string;
 	promptTag?: string;
 	/** 1-based repeat index for this model×prompt pair */
@@ -193,7 +202,10 @@ apiRoutes.post("/sites/:domain/test", async (c) => {
 		return c.json({ error: "No active prompts configured" }, 400);
 
 	const enabled = await getEnabledModels(c.env, d);
-	const models = MODELS.filter((m) => enabled.includes(m.id));
+	// Selections are stored by key. Fall back to every model when the stored
+	// list predates keys or matches nothing, rather than silently running zero.
+	let models = MODELS.filter((m) => enabled.includes(m.key));
+	if (!models.length) models = MODELS.slice();
 	if (!models.length) return c.json({ error: "No models enabled" }, 400);
 
 	// Brand context drives scoring — without it we are back to substring matching.
@@ -223,6 +235,7 @@ apiRoutes.post("/sites/:domain/test", async (c) => {
 					modelId: model.id,
 					modelName: model.name,
 					provider: model.provider,
+					mode: model.mode,
 					prompt: p.text,
 					promptTag: p.tag,
 					run,
@@ -288,6 +301,7 @@ apiRoutes.get("/tests/:id/status", async (c) => {
 		run.completed = completed;
 		run.citations = citations;
 		run.summary = summarize(citations);
+		run.sources = rankSources(citations, run.domain).slice(0, 25);
 		await c.env.AEO_KV.put(`test:${testId}`, JSON.stringify(run), {
 			expirationTtl: RETENTION_DAYS * 86400,
 		});
@@ -424,8 +438,9 @@ apiRoutes.get("/models", (c) => {
 		total: MODELS.length,
 		models: MODELS.map((m) => ({
 			name: m.name,
-			id: m.id,
+			id: m.key,
 			provider: m.provider,
+			mode: m.mode,
 		})),
 	});
 });
@@ -484,7 +499,7 @@ async function getIndex(env: Env, domain: string): Promise<IndexEntry[]> {
 async function getEnabledModels(env: Env, domain: string): Promise<string[]> {
 	const raw = await env.AEO_KV.get(`site:${domain}:models`, "json");
 	if (raw && Array.isArray(raw) && raw.length) return raw as string[];
-	return MODELS.map((m) => m.id);
+	return MODELS.map((m) => m.key);
 }
 
 // ── Setup endpoint ─────────────────────────────────────────────────────────

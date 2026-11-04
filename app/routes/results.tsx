@@ -77,6 +77,7 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 
 	const citations: any[] = (latest as any)?.citations ?? [];
 	const summary: any = (latest as any)?.summary ?? null;
+	const sources: any[] = (latest as any)?.sources ?? [];
 	const testTimestamp =
 		(latest as any)?.startedAt ?? (latest as any)?.timestamp ?? null;
 
@@ -401,6 +402,7 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 							<Scorecard
 								summary={summary}
 								brandName={(site as any)?.brandName || site.domain}
+								sources={sources}
 							/>
 						) : null}
 

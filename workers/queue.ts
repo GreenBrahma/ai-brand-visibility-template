@@ -5,11 +5,16 @@
  * Scoring is delegated to src/measure.ts so it can be unit-tested outside a Worker.
  */
 import {
+	MAX_WEB_SEARCHES,
 	RETENTION_DAYS,
 	STORED_RESPONSE_CHARS,
 	SYSTEM_PROMPT,
 } from "../src/config";
-import { analyzeResponse, type ScoredCitation } from "../src/measure";
+import {
+	analyzeResponse,
+	extractCitations,
+	type ScoredCitation,
+} from "../src/measure";
 import type { QueueJob } from "./api";
 
 type Env = {
@@ -54,6 +59,8 @@ function emptyCitation(job: QueueJob, response: string, error: string): ScoredCi
 			count: 0,
 		})),
 		excerpt: null,
+		mode: job.mode,
+		sources: [],
 		response,
 		error,
 	};
@@ -61,7 +68,9 @@ function emptyCitation(job: QueueJob, response: string, error: string): ScoredCi
 
 async function executeJob(env: Env, job: QueueJob): Promise<ScoredCitation> {
 	try {
-		const text = await callModel(env, job);
+		const { text, raw } = await callModel(env, job);
+		const sources =
+			job.mode === "search" ? extractCitations(raw, text) : [];
 
 		const a = analyzeResponse({
 			text,
@@ -91,6 +100,8 @@ async function executeJob(env: Env, job: QueueJob): Promise<ScoredCitation> {
 			promptNamedBrand: a.promptNamedBrand,
 			unprompted: a.unprompted,
 			disclaimed: a.disclaimed,
+			mode: job.mode,
+			sources,
 			response: text.slice(0, STORED_RESPONSE_CHARS),
 			error: null,
 		};
@@ -110,14 +121,20 @@ async function executeJob(env: Env, job: QueueJob): Promise<ScoredCitation> {
  * Universal model caller — all models go through env.AI.run() with AI Gateway.
  * Handles OpenAI/Anthropic (messages format) and Gemini (contents format).
  */
-async function callModel(env: Env, job: QueueJob): Promise<string> {
+async function callModel(
+	env: Env,
+	job: QueueJob,
+): Promise<{ text: string; raw: any }> {
 	if (!env.AI) {
 		throw new Error("AI binding not available");
 	}
 
+	const wantsSearch = job.mode === "search";
 	let input: any;
 
 	if (job.isGemini) {
+		// Gemini grounding is not exposed through the unified tool, so this
+		// entry is memory-only regardless of mode.
 		input = {
 			contents: [
 				{
@@ -132,6 +149,15 @@ async function callModel(env: Env, job: QueueJob): Promise<string> {
 			system: SYSTEM_PROMPT,
 			messages: [{ role: "user", content: job.prompt }],
 			max_tokens: job.maxTokens,
+			...(wantsSearch && {
+				tools: [
+					{
+						type: "web_search_20250305",
+						name: "web_search",
+						max_uses: MAX_WEB_SEARCHES,
+					},
+				],
+			}),
 		};
 	} else {
 		input = {
@@ -140,6 +166,9 @@ async function callModel(env: Env, job: QueueJob): Promise<string> {
 				{ role: "user", content: job.prompt },
 			],
 			max_tokens: job.maxTokens,
+			...(wantsSearch && {
+				tools: [{ type: "web_search_preview" }],
+			}),
 		};
 	}
 
@@ -147,7 +176,7 @@ async function callModel(env: Env, job: QueueJob): Promise<string> {
 		gateway: { id: "default" },
 	});
 
-	return extractText(r);
+	return { text: extractText(r), raw: r };
 }
 
 /** Extract text from any AI response format */

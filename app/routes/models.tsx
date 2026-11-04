@@ -22,7 +22,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 		: sites[0];
 
 	const { MODELS } = await import("../../src/config");
-	let enabled: string[] = MODELS.map((m) => m.id);
+	let enabled: string[] = MODELS.map((m) => m.key);
 	if (site) {
 		const raw = await env.AEO_KV.get(`site:${site.domain}:models`, "json");
 		if (raw && Array.isArray(raw) && raw.length) enabled = raw as string[];
@@ -32,8 +32,9 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 		site,
 		models: MODELS.map((m) => ({
 			name: m.name,
-			id: m.id,
+			id: m.key,
 			provider: m.provider,
+			mode: m.mode,
 		})),
 		enabled,
 	};

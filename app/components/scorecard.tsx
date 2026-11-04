@@ -84,12 +84,22 @@ function Bar({ value }: { value: number }) {
 	);
 }
 
+export type SourceStat = {
+	domain: string;
+	citations: number;
+	rate: number;
+	isBrand: boolean;
+	exampleUrl: string;
+};
+
 export function Scorecard({
 	summary,
 	brandName,
+	sources = [],
 }: {
 	summary: Summary;
 	brandName: string;
+	sources?: SourceStat[];
 }) {
 	if (!summary || !summary.total) return null;
 
@@ -235,6 +245,55 @@ export function Scorecard({
 					)}
 				</div>
 			</div>
+
+			{sources.length > 0 ? (
+				<div className="p-4 bg-surface rounded-xl ring-1 ring-ring flex flex-col gap-3">
+					<div className="flex items-baseline justify-between gap-3">
+						<div className="text-[11px] uppercase tracking-[0.14em] text-brand">
+							What the models read
+						</div>
+						<div className="text-[12px] text-neutral-500">
+							the work order
+						</div>
+					</div>
+					<p className="text-[13px] text-neutral-600 leading-relaxed">
+						These are the pages the models retrieved before answering. Winning
+						a place on them is how the answer changes.
+					</p>
+					<div className="flex flex-col">
+						{sources.slice(0, 12).map((src, i) => (
+							<div
+								key={src.domain}
+								className="flex items-baseline gap-3 py-2 border-b border-neutral-200 last:border-0"
+							>
+								<span className="text-[12px] text-neutral-400 tabular-nums w-5 shrink-0">
+									{i + 1}
+								</span>
+								<a
+									href={src.exampleUrl}
+									target="_blank"
+									rel="noreferrer"
+									className={`text-[13px] truncate flex-1 hover:underline ${
+										src.isBrand ? "text-brand" : "text-neutral-800"
+									}`}
+								>
+									{src.domain}
+									{src.isBrand ? " · you" : ""}
+								</a>
+								<span className="text-[12px] text-neutral-500 tabular-nums shrink-0">
+									{pct(src.rate)} of answers
+								</span>
+							</div>
+						))}
+					</div>
+					{!sources.some((x) => x.isBrand) ? (
+						<p className="text-[13px] text-danger leading-relaxed">
+							Your own domain was not cited once. Every answer about your
+							category was assembled from someone else's pages.
+						</p>
+					) : null}
+				</div>
+			) : null}
 		</div>
 	);
 }
