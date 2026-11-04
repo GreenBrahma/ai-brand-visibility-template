@@ -41,6 +41,12 @@ export type ResponseAnalysis = {
 	shareOfVoice: number;
 	/** Text around the first brand mention, for auditing */
 	excerpt: string | null;
+	/** The question itself named the brand, so a mention proves nothing */
+	promptNamedBrand: boolean;
+	/** Named without being asked about — the metric that actually matters */
+	unprompted: boolean;
+	/** The model named the brand only to say it knows nothing about it */
+	disclaimed: boolean;
 };
 
 const LEGAL_SUFFIX =
@@ -76,23 +82,52 @@ export function buildAliases(
 		if (t.length >= minLen) out.add(t);
 	};
 
+	const stripped = name.replace(LEGAL_SUFFIX, "").trim();
+
 	add(name);
-	add(name.replace(LEGAL_SUFFIX, ""));
+	add(stripped);
 	if (/\s/.test(name)) add(name.replace(/\s+/g, ""));
 	if (/[-_]/.test(name)) add(name.replace(/[-_]+/g, " "));
 
 	if (domain) {
 		const bare = bareDomain(domain);
 		add(bare);
+
+		/**
+		 * The bare domain stem is only safe as an alias when the brand name is
+		 * itself a single word.
+		 *
+		 * Yonke Law LLC on yonke.law taught us this: the stem "yonke" is Mexican
+		 * Spanish for junkyard and the name of an unrelated auto-parts
+		 * marketplace, so every answer about scrapyards scored as a mention of
+		 * the law firm and the tool reported 92% visibility for a firm the model
+		 * had never heard of. A multi-word brand must match on its multi-word
+		 * form. Operators who genuinely go by the short name can add it to
+		 * `aliases` explicitly.
+		 */
 		const stem = bare.split(".")[0];
-		add(stem);
-		if (/[-]/.test(stem)) add(stem.replace(/-+/g, " "));
+		const nameWords = stripped.split(/\s+/).filter(Boolean);
+		if (nameWords.length <= 1) {
+			add(stem);
+			if (/[-]/.test(stem)) add(stem.replace(/-+/g, " "));
+		}
 	}
 
-	// Explicit aliases bypass the length floor — the operator asked for them.
+	// Explicit aliases bypass both the length floor and the single-word rule.
 	for (const e of extra) add(e, 2);
 
 	return [...out].filter(Boolean);
+}
+
+/**
+ * Phrases a model uses to say it has no knowledge of the subject.
+ * A response that names the brand only to disclaim it is not visibility.
+ */
+const DISCLAIMER =
+	/\b(?:don'?t|do not|cannot|can'?t|unable to)\s+(?:have|find|provide|give|offer|recall)\b[^.]{0,80}\b(?:specific|detailed|verified|reliable|any|much|enough)?\s*(?:information|details|data|knowledge|record)\b|not\s+(?:in|within)\s+my\s+(?:training\s+data|knowledge\s+base)|(?:i'?m|i am)\s+not\s+familiar\s+with|no\s+(?:specific|verified|reliable)\s+information\s+about|don'?t\s+have\s+(?:specific|detailed|verified|reliable)\b/i;
+
+export function looksDisclaimed(text: string): boolean {
+	return DISCLAIMER.test(text ?? "");
 }
 
 /**
@@ -160,6 +195,8 @@ export type AnalyzeInput = {
 	brandAliases?: string[];
 	/** Competitor names; a value that looks like a domain also yields its stem */
 	competitors?: string[];
+	/** The question that produced this text — used to tell echo from discovery */
+	prompt?: string;
 	excerptPad?: number;
 };
 
@@ -169,11 +206,21 @@ export function analyzeResponse({
 	domain,
 	brandAliases = [],
 	competitors = [],
+	prompt = "",
 	excerptPad = 160,
 }: AnalyzeInput): ResponseAnalysis {
 	const body = text ?? "";
 
 	const brand = scoreEntity(body, brandName, domain, brandAliases);
+
+	/**
+	 * If the question already named the brand, the model repeating it back is
+	 * not evidence of anything. Real visibility is the model volunteering the
+	 * name when it was not given one.
+	 */
+	const aliases = buildAliases(brandName, domain, brandAliases);
+	const promptNamedBrand = findMentions(prompt, aliases).length > 0;
+	const disclaimed = looksDisclaimed(body);
 
 	const comps = competitors
 		.map((c) => c.trim())
@@ -211,6 +258,9 @@ export function analyzeResponse({
 		fieldSize: appeared.length,
 		shareOfVoice,
 		excerpt,
+		promptNamedBrand,
+		unprompted: brand.matched && !promptNamedBrand,
+		disclaimed: brand.matched && disclaimed,
 	};
 }
 
@@ -230,6 +280,9 @@ export type ScoredCitation = {
 	competitors: { name: string; matched: boolean; count: number }[];
 	excerpt: string | null;
 	response: string;
+	promptNamedBrand?: boolean;
+	unprompted?: boolean;
+	disclaimed?: boolean;
 	error?: string | null;
 };
 
@@ -258,6 +311,14 @@ export type Summary = {
 	rateSpread: number;
 	avgRank: number | null;
 	shareOfVoice: number;
+	/** Citations whose prompt did NOT name the brand */
+	openQuestions: number;
+	/** Of those, how many volunteered the brand. The headline number. */
+	unpromptedMentions: number;
+	unpromptedRate: number;
+	/** Mentions where the model named the brand only to disclaim knowledge of it */
+	disclaimedMentions: number;
+	disclaimedRate: number;
 	byModel: GroupStat[];
 	byPrompt: GroupStat[];
 	byCompetitor: {
@@ -330,10 +391,19 @@ export function summarize(citations: ScoredCitation[]): Summary {
 		};
 	});
 
+	const open = citations.filter((c) => !c.promptNamedBrand);
+	const openHits = open.filter((c) => c.mentioned);
+	const disclaimedHits = hit.filter((c) => c.disclaimed);
+
 	return {
 		total,
 		mentioned: hit.length,
 		rate: total ? hit.length / total : 0,
+		openQuestions: open.length,
+		unpromptedMentions: openHits.length,
+		unpromptedRate: open.length ? openHits.length / open.length : 0,
+		disclaimedMentions: disclaimedHits.length,
+		disclaimedRate: hit.length ? disclaimedHits.length / hit.length : 0,
 		runs: runIds.length,
 		perRun,
 		rateMin: rates.length ? Math.min(...rates) : 0,

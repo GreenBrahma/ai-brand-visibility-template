@@ -611,12 +611,21 @@ Brand: ${brand}
 ${competitorList.length ? `Competitors: ${competitorList.join(", ")}` : ""}
 ${siteContent ? `\nSite content:\n${siteContent}` : `\n(Could not fetch: ${fetchError}. Infer from domain.)`}
 
-Generate 5 prompts. Mix:
-1. Branded (1-2): Include "${brand}" directly. Test if AI knows the brand.
-2. Category (2-3): Do NOT include brand name. Category questions where ${brand} SHOULD appear.
-${competitorList.length ? `3. Competitive (1): Compare ${brand} vs ${competitorList.slice(0, 2).join(" or ")}.` : `3. Competitive (1): Ask about ${brand}'s competitors or alternatives.`}
+Generate 5 prompts. The MAJORITY must be Category prompts, because a prompt
+that names the brand only proves the model can repeat a name back.
 
-Be SPECIFIC to the site content. No generic questions.
+1. Category (3): Do NOT mention "${brand}" or any part of it. Write the question
+   a real prospective customer would type when they have the problem this
+   organization solves but have never heard of it. Include the specific service
+   and the geography or segment it serves. These are the prompts that measure
+   real visibility.
+2. Branded (1): Include "${brand}" exactly as written, in full. Never use a
+   shortened form of the name — a partial name can collide with an unrelated
+   company or a common word and make the result meaningless.
+${competitorList.length ? `3. Competitive (1): Compare ${brand} against ${competitorList.slice(0, 2).join(" or ")}, using full names.` : `3. Competitive (1): Ask who the leading providers are in this category, without naming ${brand}.`}
+
+Be SPECIFIC to the site content — real services, real location, real customer
+situations. No generic questions, no "what is X and what does it do".
 Respond with ONLY valid JSON:
 {"brandName":"${brand}","description":"1 sentence","prompts":[{"text":"question","tag":"Branded|Category|Competitive"}]}`;
 

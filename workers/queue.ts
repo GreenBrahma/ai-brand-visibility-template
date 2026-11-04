@@ -69,6 +69,7 @@ async function executeJob(env: Env, job: QueueJob): Promise<ScoredCitation> {
 			domain: job.domain,
 			brandAliases: job.brandAliases ?? [],
 			competitors: job.competitors ?? [],
+			prompt: job.prompt,
 		});
 
 		return {
@@ -87,6 +88,9 @@ async function executeJob(env: Env, job: QueueJob): Promise<ScoredCitation> {
 				count: cmp.count,
 			})),
 			excerpt: a.excerpt,
+			promptNamedBrand: a.promptNamedBrand,
+			unprompted: a.unprompted,
+			disclaimed: a.disclaimed,
 			response: text.slice(0, STORED_RESPONSE_CHARS),
 			error: null,
 		};

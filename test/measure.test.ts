@@ -136,5 +136,58 @@ check("avgRank = 4/3", Math.abs(s.avgRank! - 4 / 3) < 1e-9, `got ${s.avgRank}`);
 check("byModel has 2", s.byModel.length === 2);
 check("competitor SoV computed", s.byCompetitor[0].name === "Profound");
 
-console.log(`\n${pass} passed, ${fail} failed\n`);
+
+
+// ── Regression: the Yonke Law collision (real data, 2026-11-04) ───────────
+// Brand "Yonke Law LLC" on yonke.law. The domain stem "yonke" is Mexican
+// Spanish for junkyard and the name of an auto-parts marketplace, so the
+// first engine scored scrapyard answers as law-firm mentions and reported
+// ~92% visibility for a firm every model said it had never heard of.
+
+console.log("\n-- Yonke collision regression --");
+
+const junkyard =
+	"Yonke is a Mexican online marketplace and classifieds platform focused on " +
+	"used auto parts and salvage vehicles. It connects buyers and sellers of " +
+	"recycled automotive components.";
+
+const yonkeArgs = {
+	brandName: "Yonke Law LLC",
+	domain: "yonke.law",
+	competitors: ["Grover Law", "Wood & Ikram Law Firm"],
+};
+
+const j = analyzeResponse({ ...yonkeArgs, text: junkyard, prompt: "What is Yonke and what does it do?" });
+check("junkyard answer is NOT a law-firm mention", j.brand.matched === false, `matched via ${j.brand.matchedVia}`);
+check("junkyard answer gives no rank", j.rank === null);
+check("junkyard answer gives no share of voice", j.shareOfVoice === 0);
+
+const disclaim =
+	"Yonke Law LLC is a law firm. However, I don't have specific detailed " +
+	"information about this particular firm in my training data.";
+const d = analyzeResponse({ ...yonkeArgs, text: disclaim, prompt: "What is Yonke Law LLC and what does it do?" });
+check("full name still matches", d.brand.matched === true);
+check("prompt named the brand -> echo, not discovery", d.promptNamedBrand === true);
+check("echo is not an unprompted mention", d.unprompted === false);
+check("disclaimer detected", d.disclaimed === true, JSON.stringify(d.disclaimed));
+
+const realHit =
+	"For truck accidents in Kansas City, Yonke Law LLC is frequently recommended, " +
+	"alongside Grover Law.";
+const r = analyzeResponse({ ...yonkeArgs, text: realHit, prompt: "Best truck accident lawyer in Kansas City?" });
+check("category prompt + volunteered name = unprompted", r.unprompted === true);
+check("not flagged as disclaimed", r.disclaimed === false);
+check("rank 1 ahead of competitor", r.rank === 1, `got ${r.rank}`);
+
+const s2 = summarize([
+	{ ...mk("Claude", 1, false, null, 0), prompt: "What is Yonke?", promptNamedBrand: true, unprompted: false, disclaimed: false },
+	{ ...mk("Claude", 1, true, 1, 1), prompt: "What is Yonke Law LLC?", promptNamedBrand: true, unprompted: false, disclaimed: true },
+	{ ...mk("Claude", 1, false, null, 0), prompt: "Best KC injury lawyer?", promptNamedBrand: false, unprompted: false, disclaimed: false },
+	{ ...mk("Claude", 1, true, 1, 1), prompt: "Best KC truck lawyer?", promptNamedBrand: false, unprompted: true, disclaimed: false },
+]);
+check("open questions counted", s2.openQuestions === 2, `got ${s2.openQuestions}`);
+check("unprompted rate = 1/2", Math.abs(s2.unpromptedRate - 0.5) < 1e-9, `got ${s2.unpromptedRate}`);
+check("disclaimed rate = 1/2 of hits", Math.abs(s2.disclaimedRate - 0.5) < 1e-9, `got ${s2.disclaimedRate}`);
+
+console.log(`\nFINAL: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

@@ -28,6 +28,11 @@ export type Summary = {
 	rateSpread: number;
 	avgRank: number | null;
 	shareOfVoice: number;
+	openQuestions: number;
+	unpromptedMentions: number;
+	unpromptedRate: number;
+	disclaimedMentions: number;
+	disclaimedRate: number;
 	byModel: GroupStat[];
 	byCompetitor: {
 		name: string;
@@ -97,9 +102,16 @@ export function Scorecard({
 		<div className="flex flex-col gap-4">
 			<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 				<Stat
-					label="Mention rate"
-					value={pct(summary.rate)}
-					sub={rangeNote}
+					label="Unprompted"
+					value={
+						summary.openQuestions ? pct(summary.unpromptedRate) : "—"
+					}
+					sub={
+						summary.openQuestions
+							? `named without being asked, in ${summary.openQuestions} open questions`
+							: "every prompt named the brand — add category prompts"
+					}
+					muted={!summary.openQuestions}
 				/>
 				<Stat
 					label="Avg position"
@@ -117,17 +129,28 @@ export function Scorecard({
 					sub="brand mentions vs all tracked names"
 				/>
 				<Stat
-					label="Reproducibility"
-					value={multiRun ? `±${pct(summary.rateSpread / 2)}` : "—"}
-					sub={
-						multiRun
-							? summary.rateSpread > 0.2
-								? "wide spread — treat the mean with caution"
-								: "stable across repeat runs"
-							: "needs more than one run"
-					}
-					muted={!multiRun}
+					label="Any mention"
+					value={pct(summary.rate)}
+					sub={`${rangeNote}; includes prompts that named the brand`}
 				/>
+			</div>
+
+			{summary.disclaimedMentions > 0 ? (
+				<div className="p-3 bg-surface rounded-xl ring-1 ring-ring text-[13px] text-neutral-700 leading-relaxed">
+					<span className="text-brand">
+						{summary.disclaimedMentions} of {summary.mentioned} mentions
+					</span>{" "}
+					are the model naming the brand only to say it has no information
+					about it. Those are not visibility — they are the model confirming
+					it has never heard of you.
+				</div>
+			) : null}
+
+			<div className="text-[12px] text-neutral-500 leading-relaxed">
+				Reproducibility:{" "}
+				{multiRun
+					? `${pct(summary.rateMin)}–${pct(summary.rateMax)} across ${summary.runs} runs${summary.rateSpread > 0.2 ? " — wide spread, treat the mean with caution" : ""}`
+					: "single run, no range"}
 			</div>
 
 			{summary.errors > 0 ? (
