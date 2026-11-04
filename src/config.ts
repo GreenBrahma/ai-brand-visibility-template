@@ -33,43 +33,50 @@ export type ModelConfig = {
  * Third-party models use Unified Billing (no API keys).
  * Workers AI models use standard pricing.
  */
+/**
+ * Model IDs go stale. The upstream template shipped `anthropic/claude-sonnet-4`,
+ * which the gateway now rejects outright ("Model deprecated"), silently turning
+ * a fifth of every run into false non-mentions. These IDs are taken from
+ * Cloudflare's current live catalog. When a run shows errors on one model,
+ * check here first — the error text names its replacement.
+ */
 export const MODELS: ModelConfig[] = [
 	{
-		id: "openai/gpt-5.4-nano",
-		name: "GPT-5.4 Nano",
+		id: "openai/gpt-5.5",
+		name: "GPT-5.5",
 		provider: "openai",
 		maxTokens: 800,
 	},
 	{
-		id: "anthropic/claude-sonnet-4",
-		name: "Claude Sonnet 4",
+		id: "anthropic/claude-sonnet-4.6",
+		name: "Claude Sonnet 4.6",
 		provider: "anthropic",
 		maxTokens: 800,
 		isAnthropic: true,
 	},
 	{
-		id: "google/gemini-3-flash",
-		name: "Gemini 3 Flash",
+		id: "google/gemini-3.8-flash",
+		name: "Gemini 3.8 Flash",
 		provider: "google",
 		maxTokens: 800,
 		isGemini: true,
 	},
 	{
-		id: "@cf/meta/llama-4-scout-17b-16e-instruct",
-		name: "Llama 4 Scout 17B",
+		id: "@cf/zai-org/glm-5.2",
+		name: "GLM 5.2",
 		provider: "workers-ai",
 		maxTokens: 800,
 	},
 	{
-		id: "@cf/mistralai/mistral-small-3.1-24b-instruct",
-		name: "Mistral Small 3.1",
+		id: "@cf/qwen/qwen3.8-27b",
+		name: "Qwen3.8 27B",
 		provider: "workers-ai",
 		maxTokens: 800,
 	},
 ];
 
 /** Model used for AI prompt generation in /api/setup */
-export const SETUP_MODEL = "openai/gpt-5.4-nano";
+export const SETUP_MODEL = "openai/gpt-5.5";
 
 export const RETENTION_DAYS = 30;
 

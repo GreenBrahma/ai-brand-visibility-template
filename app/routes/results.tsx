@@ -224,7 +224,34 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 
 	const downloadFilteredCsv = () => {
 		if (!filtered.length) return;
-		const header = "Date,Model,Prompt,Mentioned,Response\n";
+
+		// Every tracked competitor becomes its own mention-count column.
+		const compNames: string[] = [
+			...new Set(
+				filtered.flatMap((c: any) =>
+					(c.competitors ?? []).map((x: any) => x.name),
+				),
+			),
+		] as string[];
+
+		const header =
+			[
+				"Date",
+				"Model",
+				"Provider",
+				"Prompt",
+				"Tag",
+				"Run",
+				"Mentioned",
+				"Rank",
+				"BrandMentions",
+				"ShareOfVoice",
+				...compNames.map((n) => `Comp:${n}`),
+				"Excerpt",
+				"Response",
+				"Error",
+			].join(",") + "\n";
+
 		const rows = filtered
 			.map((c) => {
 				const esc = (s: string) =>
@@ -233,10 +260,24 @@ export default function Results({ loaderData }: Route.ComponentProps) {
 						: s;
 				return [
 					testTimestamp ?? "",
-					c.model,
+					esc(c.model),
+					c.provider ?? "",
 					esc(c.prompt),
+					c.promptTag ?? "",
+					c.run ?? 1,
 					c.mentioned ? "Yes" : "No",
+					c.rank ?? "",
+					c.brandCount ?? 0,
+					typeof c.shareOfVoice === "number"
+						? c.shareOfVoice.toFixed(3)
+						: "0.000",
+					...compNames.map(
+						(n) =>
+							(c.competitors ?? []).find((x: any) => x.name === n)?.count ?? 0,
+					),
+					esc(c.excerpt ?? ""),
 					esc(cleanResponse(c.response)),
+					esc(c.error ?? ""),
 				].join(",");
 			})
 			.join("\n");

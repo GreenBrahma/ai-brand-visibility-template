@@ -18,7 +18,7 @@ export function SidebarSection({
 }) {
 	return (
 		<div>
-			<div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-neutral-500 px-3 pt-4 pb-1">
+			<div className="text-[10px] uppercase tracking-[0.18em] text-brand px-3 pt-4 pb-1.5">
 				{label}
 			</div>
 			{children}
@@ -46,8 +46,8 @@ export function SidebarNavItem({
 			className={({ isActive }) =>
 				`flex items-center gap-2.5 px-3 min-h-[34px] rounded-lg text-[13px] transition-all ${
 					isActive
-						? "bg-neutral-100 text-neutral-950 font-medium [&_svg]:opacity-85"
-						: "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-950 [&_svg]:opacity-55"
+						? "bg-neutral-100 text-neutral-900 border-l-2 border-brand rounded-l-none [&_svg]:opacity-100 [&_svg]:text-brand"
+						: "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 [&_svg]:opacity-55"
 				}`
 			}
 		>
